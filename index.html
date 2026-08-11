@@ -110,11 +110,32 @@ const seed=[
 {date:'10/08/2026',veh:'VCB9603',cust:'Litt Tatt',pic:'Ms Tan',type:'Light',lorong:'Lorong',doc:'All',status:'Pass'},
 {date:'08/08/2026',veh:'PQJ9718',cust:'Hock Lee Heng',pic:'Ms Tan',type:'Van'}
 ];
-let records=JSON.parse(localStorage.getItem(KEY)||'null')||seed;
+let records=seed.slice();
+try {
+  const saved=localStorage.getItem(KEY);
+  if(saved){
+    const parsed=JSON.parse(saved);
+    if(Array.isArray(parsed)) records=parsed;
+  }
+} catch(e) {
+  try {
+    const saved=sessionStorage.getItem(KEY);
+    if(saved){
+      const parsed=JSON.parse(saved);
+      if(Array.isArray(parsed)) records=parsed;
+    }
+  } catch(e2) {}
+}
 let filter='all',editIndex=-1,docQuick='';
 
 const $=id=>document.getElementById(id);
-function persist(){localStorage.setItem(KEY,JSON.stringify(records))}
+function persist(){
+  try { localStorage.setItem(KEY,JSON.stringify(records)); return true; }
+  catch(e){
+    try { sessionStorage.setItem(KEY,JSON.stringify(records)); return true; }
+    catch(e2){ return false; }
+  }
+}
 function today(){let d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()}
 function isoToDMY(x){return x?x.split('-').reverse().join('/'):today()}
 function dmyToISO(x){let a=x.split('/');return a.length===3?`${a[2]}-${a[1]}-${a[0]}`:''}
@@ -216,4 +237,62 @@ $('csvFile').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileRea
 function clearAll(){if(confirm('确定清空全部本机记录？此操作无法自动恢复。')){records=[];persist();render()}}
 render();
 </script>
+
+<script>
+(function () {
+  // Robust local storage wrapper: never let storage failures kill the app.
+  window.AVStorage = {
+    get: function (key, fallback) {
+      try {
+        var v = localStorage.getItem(key);
+        return v === null ? fallback : JSON.parse(v);
+      } catch (e) {
+        try {
+          var v2 = sessionStorage.getItem(key);
+          return v2 === null ? fallback : JSON.parse(v2);
+        } catch (e2) { return fallback; }
+      }
+    },
+    set: function (key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (e) {
+        try {
+          sessionStorage.setItem(key, JSON.stringify(value));
+          return true;
+        } catch (e2) { return false; }
+      }
+    },
+    remove: function (key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+      try { sessionStorage.removeItem(key); } catch (e) {}
+    }
+  };
+
+  // Prevent an uncaught storage/runtime error from leaving the whole UI dead.
+  window.addEventListener('error', function (ev) {
+    console.error('Auto Victoria runtime error:', ev.error || ev.message);
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    console.error('Auto Victoria promise error:', ev.reason);
+  });
+
+  // iPhone standalone/PWA friendly click handling.
+  document.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('button,[role="button"]') : null;
+    if (btn) btn.style.webkitTapHighlightColor = 'transparent';
+  }, {passive:true});
+
+  // Service worker registration should never block the app.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function (e) {
+        console.warn('Service worker registration skipped:', e);
+      });
+    });
+  }
+})();
+</script>
+
 </body></html>
